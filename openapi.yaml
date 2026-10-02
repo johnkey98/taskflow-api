@@ -1,0 +1,173 @@
+openapi: 3.0.3
+info:
+  title: TaskFlow API
+  description: |
+    Production-ready task management REST API with JWT authentication.
+    Create projects, manage tasks with statuses and priorities, all protected by bearer auth.
+  version: 1.0.0
+  contact:
+    name: John Key
+    url: https://github.com/johnkey98
+servers:
+  - url: http://localhost:3000/api
+tags:
+  - name: Auth
+  - name: Projects
+  - name: Tasks
+  - name: System
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, example: John Key }
+                email: { type: string, format: email, example: john@example.com }
+                password: { type: string, minLength: 8, example: supersecret123 }
+      responses:
+        '201': { description: User created, returns JWT }
+        '409': { description: Email already registered }
+        '422': { description: Validation failed }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and receive a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200': { description: Authenticated, returns JWT }
+        '401': { description: Invalid credentials }
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List my projects
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Project list }
+        '401': { description: Missing/invalid token }
+    post:
+      tags: [Projects]
+      summary: Create a project
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: Website Redesign }
+                description: { type: string }
+      responses:
+        '201': { description: Project created }
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get project with tasks
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '200': { description: Project detail }
+        '404': { description: Not found }
+    delete:
+      tags: [Projects]
+      summary: Delete project (cascades tasks)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ProjectId' }]
+      responses:
+        '204': { description: Deleted }
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks (filterable)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: projectId, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [todo, in_progress, review, done] } }
+        - { in: query, name: priority, schema: { type: string, enum: [low, medium, high, urgent] } }
+      responses:
+        '200': { description: Task list sorted by priority }
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, title]
+              properties:
+                projectId: { type: string, format: uuid }
+                title: { type: string, example: Design landing page }
+                description: { type: string }
+                status: { type: string, enum: [todo, in_progress, review, done] }
+                priority: { type: string, enum: [low, medium, high, urgent] }
+                dueDate: { type: string, format: date-time, nullable: true }
+      responses:
+        '201': { description: Task created }
+        '403': { description: Project not owned by you }
+  /tasks/{id}:
+    patch:
+      tags: [Tasks]
+      summary: Update task fields
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TaskId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                status: { type: string, enum: [todo, in_progress, review, done] }
+                priority: { type: string, enum: [low, medium, high, urgent] }
+      responses:
+        '200': { description: Updated task }
+    delete:
+      tags: [Tasks]
+      summary: Delete a task
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/TaskId' }]
+      responses:
+        '204': { description: Deleted }
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      responses:
+        '200': { description: Service is healthy }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ProjectId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+    TaskId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
